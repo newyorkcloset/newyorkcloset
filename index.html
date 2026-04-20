@@ -234,7 +234,6 @@ footer{background:var(--dark);color:#fff;padding:3rem 2rem;text-align:center}
         <div class="field"><label>Talla</label><select id="f-talla"><option>XS</option><option>S</option><option selected>M</option><option>L</option><option>XL</option><option>XXL</option></select></div>
         <div class="field"><label>Precio (Bs.)</label><input type="number" id="f-price" placeholder="25" min="1" /></div>
       </div>
-      <div class="field"><label>Código de producto</label><input type="text" id="f-code" placeholder="Ej: NYC-001" /></div>
       <div class="field">
         <label>Fotos — Frente, Atrás, Etiqueta</label>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px">
@@ -396,7 +395,7 @@ window.openAddModal = () => {
   // no name field
   document.getElementById('f-talla').value = 'M';
   document.getElementById('f-price').value = '';
-  document.getElementById('f-code').value = '';
+  // code is auto-generated
   resetSlots();
   document.getElementById('ov-product').classList.add('open');
 };
@@ -411,7 +410,7 @@ window.editProduct = id => {
   // no name field
   document.getElementById('f-talla').value = p.talla;
   document.getElementById('f-price').value = p.price;
-  document.getElementById('f-code').value = p.code || '';
+  // code is auto-generated
   const imgs = p.imgs || (p.img ? [p.img] : []);
   resetSlots([imgs[0]||null, imgs[1]||null, imgs[2]||null]);
   document.getElementById('ov-product').classList.add('open');
@@ -433,7 +432,6 @@ window.saveProduct = async () => {
   const name = '';
   const talla = document.getElementById('f-talla').value;
   const price = parseInt(document.getElementById('f-price').value);
-  const code = document.getElementById('f-code').value.trim();
   if(!price){ alert('Completa el precio.'); return; }
 
   const btn = document.getElementById('save-btn');
@@ -453,8 +451,11 @@ window.saveProduct = async () => {
 
   try {
     if(editId){
+      const p = allProducts.find(x => x.id === editId);
+      const code = p ? p.code : '';
       await updateDoc(doc(db,'poleras',editId), {name,talla,price,code,imgs,updatedAt:serverTimestamp()});
     } else {
+      const code = String(allProducts.length + 1);
       await addDoc(collection(db,'poleras'), {name,talla,price,code,imgs,sold:false,createdAt:serverTimestamp()});
     }
     closeOv('ov-product');
