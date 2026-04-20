@@ -513,7 +513,7 @@ function render(){
   let list = filterTalla==='all' ? allProducts : allProducts.filter(p => p.talla===filterTalla);
   document.getElementById('stat-total').textContent = allProducts.length;
   document.getElementById('stat-avail').textContent = allProducts.filter(p => !p.sold).length;
-  document.getElementById('stat-sold').textContent = allProducts.filter(p => p.sold).length;
+  document.getElementById('stat-sold').textContent = 100 + allProducts.filter(p => p.sold).length;
   document.getElementById('count-lbl').textContent = list.length+' producto'+(list.length!==1?'s':'');
   const grid = document.getElementById('grid');
   if(!list.length){
