@@ -230,7 +230,6 @@ footer{background:var(--dark);color:#fff;padding:3rem 2rem;text-align:center}
   <div class="modal">
     <div class="modal-head"><h2 id="prod-title">Nueva Polera</h2><button class="modal-close" onclick="closeOv('ov-product')">✕</button></div>
     <div class="modal-body">
-      <div class="field"><label>Nombre / Descripción</label><input type="text" id="f-name" placeholder="Ej: Polera azul manga corta" /></div>
       <div class="field-2">
         <div class="field"><label>Talla</label><select id="f-talla"><option>XS</option><option>S</option><option selected>M</option><option>L</option><option>XL</option><option>XXL</option></select></div>
         <div class="field"><label>Precio (Bs.)</label><input type="number" id="f-price" placeholder="25" min="1" /></div>
@@ -394,7 +393,7 @@ window.openAddModal = () => {
   if(!auth.currentUser){ alert('Debes iniciar sesión como admin.'); return; }
   editId = null;
   document.getElementById('prod-title').textContent = 'Nueva Polera';
-  document.getElementById('f-name').value = '';
+  // no name field
   document.getElementById('f-talla').value = 'M';
   document.getElementById('f-price').value = '';
   document.getElementById('f-code').value = '';
@@ -409,7 +408,7 @@ window.editProduct = id => {
   if(!p) return;
   editId = id;
   document.getElementById('prod-title').textContent = 'Editar Polera';
-  document.getElementById('f-name').value = p.name;
+  // no name field
   document.getElementById('f-talla').value = p.talla;
   document.getElementById('f-price').value = p.price;
   document.getElementById('f-code').value = p.code || '';
@@ -431,11 +430,11 @@ async function uploadToCloudinary(file) {
 // SAVE PRODUCT
 window.saveProduct = async () => {
   if(!auth.currentUser){ alert('No autorizado.'); return; }
-  const name = document.getElementById('f-name').value.trim();
+  const name = '';
   const talla = document.getElementById('f-talla').value;
   const price = parseInt(document.getElementById('f-price').value);
   const code = document.getElementById('f-code').value.trim();
-  if(!name || !price){ alert('Completa nombre y precio.'); return; }
+  if(!price){ alert('Completa el precio.'); return; }
 
   const btn = document.getElementById('save-btn');
   btn.textContent = 'Guardando...';
