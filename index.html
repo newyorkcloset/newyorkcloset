@@ -547,9 +547,10 @@ function render(){
 }
 
 // REALTIME
-const q = query(collection(db,'poleras'), orderBy('createdAt','desc'));
+const q = query(collection(db,'poleras'), orderBy('code','asc'));
 onSnapshot(q, snap => {
-  allProducts = snap.docs.map(d => ({id:d.id,...d.data()}));
+  allProducts = snap.docs.map(d => ({id:d.id,...d.data()}))
+    .filter(p => !p.code.startsWith('EXTRA'));
   render();
 }, err => {
   console.error(err);
