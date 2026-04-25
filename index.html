@@ -486,7 +486,7 @@ window.openDetail = id => {
   const imgs = p.imgs && p.imgs.length ? p.imgs : (p.img ? [p.img] : []);
   document.getElementById('d-name').textContent = p.name;
   document.getElementById('d-talla').textContent = p.talla;
-  document.getElementById('d-price').textContent = p.price;
+  document.getElementById('d-price').textContent = p.price ? p.price : 'Consultar';
   document.getElementById('d-code').textContent = p.code ? 'Cód: '+p.code : '';
   const bigImg = document.getElementById('d-bigimg');
   const bigWrap = document.querySelector('.detail-bigimg');
@@ -533,7 +533,7 @@ function render(){
         <div class="card-row">
           <div class="talla">${p.talla}</div>
           ${imgs.length>1?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:#999;letter-spacing:1px">${imgs.length} fotos</div>`:''}
-          <div class="price-wrap"><div class="price-curr">Bs.</div><div class="price">${p.price}</div></div>
+          ${p.price ? `<div class="price-wrap"><div class="price-curr">Bs.</div><div class="price">${p.price}</div></div>` : `<div class="price-wrap"><div class="price" style="font-size:18px;color:var(--muted)">Consultar</div></div>`}
         </div>
         ${p.code?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:1px;color:#666;margin-top:4px">Código ${p.code}</div>`:''}
       </div>
