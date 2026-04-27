@@ -102,8 +102,10 @@ footer{background:var(--dark);color:#fff;padding:3rem 2rem;text-align:center}
 .field input,.field select{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:'Barlow',sans-serif;font-size:15px;background:var(--cream);color:var(--dark);outline:none;transition:border-color .15s}
 .field input:focus,.field select:focus{border-color:var(--navy);background:#fff}
 .field-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.img-slot{aspect-ratio:1;border:2px dashed var(--border);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;overflow:hidden;background:var(--cream);transition:border-color .2s;position:relative}
+.img-slot{aspect-ratio:1;border:2px dashed var(--border);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:grab;overflow:hidden;background:var(--cream);transition:border-color .2s,transform .15s,opacity .15s;position:relative}
 .img-slot:hover{border-color:var(--navy)}
+.img-slot.dragging{opacity:.4;transform:scale(.97)}
+.img-slot.drag-over{border-color:var(--navy);border-style:solid;background:rgba(26,58,107,0.06);transform:scale(1.03)}
 .img-slot img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
 .slot-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:1px;color:#aaa;text-transform:uppercase;z-index:1}
 .modal-foot{padding:1rem 1.75rem 1.75rem;display:flex;gap:12px}
@@ -372,20 +374,61 @@ window.previewSlot = (i, input) => {
 
 // RESET SLOTS
 function resetSlots(previews) {
-  const labels = ['Frente','Atrás','Etiqueta'];
-  const svgIcon = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
   slotFiles = [null,null,null];
   slotPreviews = previews || [null,null,null];
   for(let i=0;i<3;i++){
     document.getElementById('file-'+i).value = '';
-    const slot = document.getElementById('slot-'+i);
-    if(slotPreviews[i]){
-      slot.innerHTML = `<img src="${slotPreviews[i]}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" />`;
-    } else {
-      slot.innerHTML = `${svgIcon}<span class="slot-label">${labels[i]}</span>`;
-    }
+    refreshSlotUI(i);
   }
 }
+
+function refreshSlotUI(i) {
+  const labels = ['Frente','Atrás','Etiqueta'];
+  const svgIcon = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
+  const slot = document.getElementById('slot-'+i);
+  if(slotPreviews[i]){
+    slot.innerHTML = `<img src="${slotPreviews[i]}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" />`;
+  } else {
+    slot.innerHTML = `${svgIcon}<span class="slot-label">${labels[i]}</span>`;
+  }
+}
+
+// DRAG & DROP SLOTS
+let dragSrc = null;
+function initSlotDrag() {
+  for(let i=0;i<3;i++){
+    const slot = document.getElementById('slot-'+i);
+    slot.setAttribute('draggable','true');
+    slot.dataset.slot = i;
+
+    slot.addEventListener('dragstart', e => {
+      dragSrc = i;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => slot.classList.add('dragging'), 0);
+    });
+    slot.addEventListener('dragend', () => {
+      slot.classList.remove('dragging');
+      document.querySelectorAll('.img-slot').forEach(s => s.classList.remove('drag-over'));
+    });
+    slot.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if(dragSrc !== i) slot.classList.add('drag-over');
+    });
+    slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+    slot.addEventListener('drop', e => {
+      e.preventDefault();
+      slot.classList.remove('drag-over');
+      if(dragSrc === null || dragSrc === i) return;
+      [slotFiles[dragSrc], slotFiles[i]] = [slotFiles[i], slotFiles[dragSrc]];
+      [slotPreviews[dragSrc], slotPreviews[i]] = [slotPreviews[i], slotPreviews[dragSrc]];
+      refreshSlotUI(dragSrc);
+      refreshSlotUI(i);
+      dragSrc = null;
+    });
+  }
+}
+initSlotDrag();
 
 // OPEN ADD
 window.openAddModal = () => {
