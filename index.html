@@ -106,6 +106,9 @@ footer{background:var(--dark);color:#fff;padding:3rem 2rem;text-align:center}
 .img-slot:hover{border-color:var(--navy)}
 .img-slot.dragging{opacity:.4;transform:scale(.97)}
 .img-slot.drag-over{border-color:var(--navy);border-style:solid;background:rgba(26,58,107,0.06);transform:scale(1.03)}
+.img-slot.add-slot{cursor:pointer}
+.slot-del{position:absolute;top:5px;right:5px;z-index:10;background:rgba(192,57,43,.85);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:13px;line-height:22px;text-align:center;cursor:pointer;padding:0;display:none}
+.img-slot:hover .slot-del{display:block}
 .img-slot img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
 .slot-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:1px;color:#aaa;text-transform:uppercase;z-index:1}
 .modal-foot{padding:1rem 1.75rem 1.75rem;display:flex;gap:12px}
@@ -237,24 +240,9 @@ footer{background:var(--dark);color:#fff;padding:3rem 2rem;text-align:center}
         <div class="field"><label>Precio (Bs.)</label><input type="number" id="f-price" placeholder="25" min="1" /></div>
       </div>
       <div class="field">
-        <label>Fotos — Frente, Atrás, Etiqueta</label>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px">
-          <div class="img-slot" id="slot-0">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-            <span class="slot-label">Frente</span>
-          </div>
-          <div class="img-slot" id="slot-1">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-            <span class="slot-label">Atrás</span>
-          </div>
-          <div class="img-slot" id="slot-2">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-            <span class="slot-label">Etiqueta</span>
-          </div>
-        </div>
-        <input type="file" id="file-0" accept="image/*" style="display:none" onchange="previewSlot(0,this)" />
-        <input type="file" id="file-1" accept="image/*" style="display:none" onchange="previewSlot(1,this)" />
-        <input type="file" id="file-2" accept="image/*" style="display:none" onchange="previewSlot(2,this)" />
+        <label>Fotos — arrastra para reordenar</label>
+        <div id="slots-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px"></div>
+        <input type="file" id="file-add" accept="image/*" style="display:none" onchange="addSlotFile(this)" />
       </div>
     </div>
     <div class="modal-foot">
@@ -312,8 +300,8 @@ const auth = getAuth(app);
 let allProducts = [];
 let filterTalla = 'all';
 let editId = null;
-let slotFiles = [null, null, null];
-let slotPreviews = [null, null, null];
+let slotFiles = [];
+let slotPreviews = [];
 
 // CLOSE OVERLAY
 window.closeOv = id => document.getElementById(id).classList.remove('open');
@@ -359,55 +347,23 @@ window.setFilter = (el, t) => {
   render();
 };
 
-// SLOT PREVIEW
-window.previewSlot = (i, input) => {
-  if(!input.files[0]) return;
-  slotFiles[i] = input.files[0];
-  const r = new FileReader();
-  r.onload = e => {
-    slotPreviews[i] = e.target.result;
-    const slot = document.getElementById('slot-'+i);
-    slot.innerHTML = `<img src="${slotPreviews[i]}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" />`;
-  };
-  r.readAsDataURL(input.files[0]);
-};
-
-// RESET SLOTS
-function resetSlots(previews) {
-  slotFiles = [null,null,null];
-  slotPreviews = previews || [null,null,null];
-  for(let i=0;i<3;i++){
-    document.getElementById('file-'+i).value = '';
-    refreshSlotUI(i);
-  }
-}
-
-function refreshSlotUI(i) {
-  const labels = ['Frente','Atrás','Etiqueta'];
-  const svgIcon = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
-  const slot = document.getElementById('slot-'+i);
-  if(slotPreviews[i]){
-    slot.innerHTML = `<img src="${slotPreviews[i]}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" />`;
-  } else {
-    slot.innerHTML = `${svgIcon}<span class="slot-label">${labels[i]}</span>`;
-  }
-}
-
-// DRAG & DROP SLOTS
+// SLOTS — dinámico
+const SVG_IMG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
 let dragSrc = null;
-let slotDragged = false;
 
-function initSlotDrag() {
-  for(let i=0;i<3;i++){
+function rebuildSlotsUI() {
+  const grid = document.getElementById('slots-grid');
+  let html = slotPreviews.map((url, i) => `
+    <div class="img-slot" id="slot-${i}" draggable="true">
+      <img src="${url}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" />
+      <button class="slot-del" onclick="removeSlot(${i})">✕</button>
+    </div>`).join('');
+  html += `<div class="img-slot add-slot" id="slot-add">${SVG_IMG}<span class="slot-label">Agregar</span></div>`;
+  grid.innerHTML = html;
+
+  // Eventos drag en slots con foto
+  slotPreviews.forEach((_, i) => {
     const slot = document.getElementById('slot-'+i);
-    slot.setAttribute('draggable','true');
-
-    // Click para abrir selector de archivo (solo si no fue un drag)
-    slot.addEventListener('click', () => {
-      if(slotDragged){ slotDragged = false; return; }
-      document.getElementById('file-'+i).click();
-    });
-
     slot.addEventListener('dragstart', e => {
       dragSrc = i;
       e.dataTransfer.effectAllowed = 'move';
@@ -416,29 +372,49 @@ function initSlotDrag() {
     });
     slot.addEventListener('dragend', () => {
       slot.classList.remove('dragging');
-      document.querySelectorAll('.img-slot').forEach(s => s.classList.remove('drag-over'));
+      grid.querySelectorAll('.img-slot').forEach(s => s.classList.remove('drag-over'));
     });
-    slot.addEventListener('dragover', e => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      if(dragSrc !== i) slot.classList.add('drag-over');
-    });
+    slot.addEventListener('dragover', e => { e.preventDefault(); if(dragSrc !== i) slot.classList.add('drag-over'); });
     slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
     slot.addEventListener('drop', e => {
       e.preventDefault();
       slot.classList.remove('drag-over');
       const src = parseInt(e.dataTransfer.getData('text/plain'));
       if(isNaN(src) || src === i) return;
-      slotDragged = true;
       [slotFiles[src], slotFiles[i]] = [slotFiles[i], slotFiles[src]];
       [slotPreviews[src], slotPreviews[i]] = [slotPreviews[i], slotPreviews[src]];
-      refreshSlotUI(src);
-      refreshSlotUI(i);
-      dragSrc = null;
+      rebuildSlotsUI();
     });
-  }
+  });
+
+  // Botón agregar
+  document.getElementById('slot-add').addEventListener('click', () => document.getElementById('file-add').click());
 }
-initSlotDrag();
+
+window.removeSlot = i => {
+  slotFiles.splice(i, 1);
+  slotPreviews.splice(i, 1);
+  rebuildSlotsUI();
+};
+
+window.addSlotFile = input => {
+  if(!input.files[0]) return;
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = e => {
+    slotPreviews.push(e.target.result);
+    slotFiles.push(file);
+    rebuildSlotsUI();
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+};
+
+function resetSlots(imgs) {
+  slotPreviews = (imgs || []).filter(Boolean);
+  slotFiles = slotPreviews.map(() => null);
+  rebuildSlotsUI();
+}
 
 // OPEN ADD
 window.openAddModal = () => {
@@ -464,8 +440,8 @@ window.editProduct = id => {
   document.getElementById('f-talla').value = p.talla;
   document.getElementById('f-price').value = p.price;
   // code is auto-generated
-  const imgs = p.imgs || (p.img ? [p.img] : []);
-  resetSlots([imgs[0]||null, imgs[1]||null, imgs[2]||null]);
+  const imgs = p.imgs && p.imgs.length ? p.imgs : (p.img ? [p.img] : []);
+  resetSlots(imgs);
   document.getElementById('ov-product').classList.add('open');
 };
 
@@ -491,16 +467,15 @@ window.saveProduct = async () => {
   btn.textContent = 'Guardando...';
   btn.disabled = true;
 
-  const finalImgs = [...slotPreviews];
-  for(let i=0;i<3;i++){
+  const imgs = [];
+  for(let i=0;i<slotPreviews.length;i++){
     if(slotFiles[i]){
-      try {
-        const url = await uploadToCloudinary(slotFiles[i]);
-        if(url) finalImgs[i] = url;
-      } catch(e){ console.error('Upload error slot',i,e); }
+      try { const url = await uploadToCloudinary(slotFiles[i]); if(url) imgs.push(url); }
+      catch(e){ console.error('Upload error slot',i,e); }
+    } else if(slotPreviews[i]){
+      imgs.push(slotPreviews[i]);
     }
   }
-  const imgs = finalImgs.filter(Boolean);
 
   try {
     if(editId){
