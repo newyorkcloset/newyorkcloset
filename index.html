@@ -239,15 +239,15 @@ footer{background:var(--dark);color:#fff;padding:3rem 2rem;text-align:center}
       <div class="field">
         <label>Fotos — Frente, Atrás, Etiqueta</label>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px">
-          <div class="img-slot" id="slot-0" onclick="document.getElementById('file-0').click()">
+          <div class="img-slot" id="slot-0">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
             <span class="slot-label">Frente</span>
           </div>
-          <div class="img-slot" id="slot-1" onclick="document.getElementById('file-1').click()">
+          <div class="img-slot" id="slot-1">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
             <span class="slot-label">Atrás</span>
           </div>
-          <div class="img-slot" id="slot-2" onclick="document.getElementById('file-2').click()">
+          <div class="img-slot" id="slot-2">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
             <span class="slot-label">Etiqueta</span>
           </div>
@@ -395,15 +395,23 @@ function refreshSlotUI(i) {
 
 // DRAG & DROP SLOTS
 let dragSrc = null;
+let slotDragged = false;
+
 function initSlotDrag() {
   for(let i=0;i<3;i++){
     const slot = document.getElementById('slot-'+i);
     slot.setAttribute('draggable','true');
-    slot.dataset.slot = i;
+
+    // Click para abrir selector de archivo (solo si no fue un drag)
+    slot.addEventListener('click', () => {
+      if(slotDragged){ slotDragged = false; return; }
+      document.getElementById('file-'+i).click();
+    });
 
     slot.addEventListener('dragstart', e => {
       dragSrc = i;
       e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(i));
       setTimeout(() => slot.classList.add('dragging'), 0);
     });
     slot.addEventListener('dragend', () => {
@@ -419,10 +427,12 @@ function initSlotDrag() {
     slot.addEventListener('drop', e => {
       e.preventDefault();
       slot.classList.remove('drag-over');
-      if(dragSrc === null || dragSrc === i) return;
-      [slotFiles[dragSrc], slotFiles[i]] = [slotFiles[i], slotFiles[dragSrc]];
-      [slotPreviews[dragSrc], slotPreviews[i]] = [slotPreviews[i], slotPreviews[dragSrc]];
-      refreshSlotUI(dragSrc);
+      const src = parseInt(e.dataTransfer.getData('text/plain'));
+      if(isNaN(src) || src === i) return;
+      slotDragged = true;
+      [slotFiles[src], slotFiles[i]] = [slotFiles[i], slotFiles[src]];
+      [slotPreviews[src], slotPreviews[i]] = [slotPreviews[i], slotPreviews[src]];
+      refreshSlotUI(src);
       refreshSlotUI(i);
       dragSrc = null;
     });
