@@ -353,17 +353,25 @@ let dragSrc = null;
 
 function rebuildSlotsUI() {
   const grid = document.getElementById('slots-grid');
-  let html = slotPreviews.map((url, i) => `
-    <div class="img-slot" id="slot-${i}" draggable="true">
-      <img src="${url}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" />
-      <button class="slot-del" onclick="removeSlot(${i})">✕</button>
-    </div>`).join('');
-  html += `<div class="img-slot add-slot" id="slot-add">${SVG_IMG}<span class="slot-label">Agregar</span></div>`;
-  grid.innerHTML = html;
+  if(!grid) return;
+  grid.innerHTML = '';
 
-  // Eventos drag en slots con foto
-  slotPreviews.forEach((_, i) => {
-    const slot = document.getElementById('slot-'+i);
+  slotPreviews.forEach((url, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'img-slot';
+    slot.setAttribute('draggable', 'true');
+
+    const img = document.createElement('img');
+    img.src = url;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;inset:0;pointer-events:none';
+    slot.appendChild(img);
+
+    const del = document.createElement('button');
+    del.className = 'slot-del';
+    del.textContent = '✕';
+    del.addEventListener('click', e => { e.stopPropagation(); removeSlot(i); });
+    slot.appendChild(del);
+
     slot.addEventListener('dragstart', e => {
       dragSrc = i;
       e.dataTransfer.effectAllowed = 'move';
@@ -385,10 +393,16 @@ function rebuildSlotsUI() {
       [slotPreviews[src], slotPreviews[i]] = [slotPreviews[i], slotPreviews[src]];
       rebuildSlotsUI();
     });
+
+    grid.appendChild(slot);
   });
 
-  // Botón agregar
-  document.getElementById('slot-add').addEventListener('click', () => document.getElementById('file-add').click());
+  // Slot agregar
+  const addSlot = document.createElement('div');
+  addSlot.className = 'img-slot add-slot';
+  addSlot.innerHTML = SVG_IMG + '<span class="slot-label">Agregar</span>';
+  addSlot.addEventListener('click', () => document.getElementById('file-add').click());
+  grid.appendChild(addSlot);
 }
 
 window.removeSlot = i => {
