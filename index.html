@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>New York Closet — Ropa Americana · Cochabamba</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--navy:#1a3a6b;--red:#c0392b;--white:#f8f6f1;--cream:#ede9df;--dark:#0d1b2a;--gold:#e8b84b;--border:#d4cfc4;--card:#ffffff;--text:#1a1a1a;--muted:#777}
@@ -277,303 +282,105 @@ footer{background:var(--dark);color:#fff;padding:3rem 2rem;text-align:center}
   </div>
 </div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp, orderBy, query } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBQsimr0ksKUCN0pmz8zyGo-3ZK9vOifI0",
-  authDomain: "new-york-closet.firebaseapp.com",
-  projectId: "new-york-closet",
-  storageBucket: "new-york-closet.firebasestorage.app",
-  messagingSenderId: "218163549986",
-  appId: "1:218163549986:web:9061c155e268d00817777b"
-};
-
+<script>
+const CACHE_KEY = 'nyc_v2';
 const CLOUD_NAME = 'dmwfag1qf';
 const CLOUD_PRESET = 'newyorkcloset';
+const FB_CONFIG = {
+  apiKey:"AIzaSyBQsimr0ksKUCN0pmz8zyGo-3ZK9vOifI0",
+  authDomain:"new-york-closet.firebaseapp.com",
+  projectId:"new-york-closet",
+  storageBucket:"new-york-closet.firebasestorage.app",
+  messagingSenderId:"218163549986",
+  appId:"1:218163549986:web:9061c155e268d00817777b"
+};
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
+window._p = [];
+window._filter = 'all';
+window._editId = null;
+window._slotFiles = [];
+window._slotPreviews = [];
 
-let allProducts = [];
-let filterTalla = 'all';
-let editId = null;
-let slotFiles = [];
-let slotPreviews = [];
+function clThumb(url) {
+  if (!url || !url.includes('cloudinary.com')) return url;
+  return url.replace('/upload/', '/upload/w_420,h_560,c_fill,f_auto,q_auto/');
+}
+function clFull(url) {
+  if (!url || !url.includes('cloudinary.com')) return url;
+  return url.replace('/upload/', '/upload/w_900,f_auto,q_auto/');
+}
 
-// CLOSE OVERLAY
 window.closeOv = id => document.getElementById(id).classList.remove('open');
-document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if(e.target === o) o.classList.remove('open'); }));
+document.querySelectorAll('.overlay').forEach(o =>
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); })
+);
 
-// AUTH STATE
-onAuthStateChanged(auth, user => {
-  if(user){ document.body.classList.add('admin-mode'); }
-  else { document.body.classList.remove('admin-mode'); }
-});
-
-// LOGIN
-window.openLogin = () => {
-  document.getElementById('ov-login').classList.add('open');
-  setTimeout(() => document.getElementById('pwd').focus(), 150);
-};
-
-window.doLogin = async () => {
-  const btn = document.getElementById('login-btn');
-  const err = document.getElementById('login-err');
-  err.style.display = 'none';
-  btn.textContent = 'Entrando...';
-  btn.disabled = true;
-  try {
-    await signInWithEmailAndPassword(auth, 'david12345aeioud@gmail.com', document.getElementById('pwd').value);
-    closeOv('ov-login');
-    document.getElementById('pwd').value = '';
-  } catch(e) {
-    err.style.display = 'block';
-  }
-  btn.textContent = 'Entrar';
-  btn.disabled = false;
-};
-
-// LOGOUT
-window.doLogout = async () => { await signOut(auth); };
-
-// FILTER
 window.setFilter = (el, t) => {
   document.querySelectorAll('.fpill').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
-  filterTalla = t;
-  render();
+  window._filter = t;
+  window.render();
 };
 
-// SLOTS — dinámico
-const SVG_IMG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
-let dragSrc = null;
-
-function rebuildSlotsUI() {
-  const grid = document.getElementById('slots-grid');
-  if(!grid) return;
-  grid.innerHTML = '';
-
-  slotPreviews.forEach((url, i) => {
-    const slot = document.createElement('div');
-    slot.className = 'img-slot';
-    slot.setAttribute('draggable', 'true');
-
-    const img = document.createElement('img');
-    img.src = url;
-    img.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;inset:0;pointer-events:none';
-    slot.appendChild(img);
-
-    const del = document.createElement('button');
-    del.className = 'slot-del';
-    del.textContent = '✕';
-    del.addEventListener('click', e => { e.stopPropagation(); removeSlot(i); });
-    slot.appendChild(del);
-
-    slot.addEventListener('dragstart', e => {
-      dragSrc = i;
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', String(i));
-      setTimeout(() => slot.classList.add('dragging'), 0);
-    });
-    slot.addEventListener('dragend', () => {
-      slot.classList.remove('dragging');
-      grid.querySelectorAll('.img-slot').forEach(s => s.classList.remove('drag-over'));
-    });
-    slot.addEventListener('dragover', e => { e.preventDefault(); if(dragSrc !== i) slot.classList.add('drag-over'); });
-    slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
-    slot.addEventListener('drop', e => {
-      e.preventDefault();
-      slot.classList.remove('drag-over');
-      const src = parseInt(e.dataTransfer.getData('text/plain'));
-      if(isNaN(src) || src === i) return;
-      [slotFiles[src], slotFiles[i]] = [slotFiles[i], slotFiles[src]];
-      [slotPreviews[src], slotPreviews[i]] = [slotPreviews[i], slotPreviews[src]];
-      rebuildSlotsUI();
-    });
-
-    grid.appendChild(slot);
-  });
-
-  // Slot agregar
-  const addSlot = document.createElement('div');
-  addSlot.className = 'img-slot add-slot';
-  addSlot.innerHTML = SVG_IMG + '<span class="slot-label">Agregar</span>';
-  addSlot.addEventListener('click', () => document.getElementById('file-add').click());
-  grid.appendChild(addSlot);
-}
-
-window.removeSlot = i => {
-  slotFiles.splice(i, 1);
-  slotPreviews.splice(i, 1);
-  rebuildSlotsUI();
-};
-
-window.addSlotFile = input => {
-  if(!input.files[0]) return;
-  const file = input.files[0];
-  const reader = new FileReader();
-  reader.onload = e => {
-    slotPreviews.push(e.target.result);
-    slotFiles.push(file);
-    rebuildSlotsUI();
-  };
-  reader.readAsDataURL(file);
-  input.value = '';
-};
-
-function resetSlots(imgs) {
-  slotPreviews = (imgs || []).filter(Boolean);
-  slotFiles = slotPreviews.map(() => null);
-  rebuildSlotsUI();
-}
-
-// OPEN ADD
-window.openAddModal = () => {
-  if(!auth.currentUser){ alert('Debes iniciar sesión como admin.'); return; }
-  editId = null;
-  document.getElementById('prod-title').textContent = 'Nueva Polera';
-  document.getElementById('f-talla').value = 'M';
-  document.getElementById('f-price').value = '';
-  document.getElementById('f-code').value = '';
-  resetSlots();
-  document.getElementById('ov-product').classList.add('open');
-};
-
-// OPEN EDIT
-window.editProduct = id => {
-  if(!auth.currentUser) return;
-  const p = allProducts.find(x => x.id === id);
-  if(!p) return;
-  editId = id;
-  document.getElementById('prod-title').textContent = 'Editar Polera';
-  document.getElementById('f-talla').value = p.talla;
-  document.getElementById('f-price').value = p.price;
-  document.getElementById('f-code').value = p.code || '';
-  const imgs = p.imgs && p.imgs.length ? p.imgs : (p.img ? [p.img] : []);
-  resetSlots(imgs);
-  document.getElementById('ov-product').classList.add('open');
-};
-
-// UPLOAD TO CLOUDINARY
-async function uploadToCloudinary(file) {
-  const fd = new FormData();
-  fd.append('file', file);
-  fd.append('upload_preset', CLOUD_PRESET);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {method:'POST',body:fd});
-  const data = await res.json();
-  return data.secure_url || null;
-}
-
-// SAVE PRODUCT
-window.saveProduct = async () => {
-  if(!auth.currentUser){ alert('No autorizado.'); return; }
-  const name = '';
-  const talla = document.getElementById('f-talla').value;
-  const price = parseInt(document.getElementById('f-price').value);
-  const codeInput = document.getElementById('f-code').value.trim();
-  if(!price){ alert('Completa el precio.'); return; }
-  if(!codeInput){ alert('Completa el código.'); return; }
-
-  const btn = document.getElementById('save-btn');
-  btn.textContent = 'Guardando...';
-  btn.disabled = true;
-
-  const imgs = [];
-  for(let i=0;i<slotPreviews.length;i++){
-    if(slotFiles[i]){
-      try { const url = await uploadToCloudinary(slotFiles[i]); if(url) imgs.push(url); }
-      catch(e){ console.error('Upload error slot',i,e); }
-    } else if(slotPreviews[i]){
-      imgs.push(slotPreviews[i]);
-    }
-  }
-
-  try {
-    if(editId){
-      await updateDoc(doc(db,'poleras',editId), {name,talla,price,code:codeInput,imgs,updatedAt:serverTimestamp()});
-    } else {
-      await addDoc(collection(db,'poleras'), {name,talla,price,code:codeInput,imgs,sold:false,createdAt:serverTimestamp()});
-    }
-    closeOv('ov-product');
-  } catch(e){ alert('Error: '+e.message); }
-
-  btn.textContent = 'Guardar';
-  btn.disabled = false;
-};
-
-// TOGGLE SOLD
-window.toggleSold = async id => {
-  if(!auth.currentUser) return;
-  const p = allProducts.find(x => x.id === id);
-  if(p) await updateDoc(doc(db,'poleras',id), {sold:!p.sold});
-};
-
-// DELETE
-window.deleteProduct = async id => {
-  if(!auth.currentUser) return;
-  if(!confirm('¿Eliminar esta polera?')) return;
-  await deleteDoc(doc(db,'poleras',id));
-};
-
-// DETAIL MODAL
 window.openDetail = id => {
-  const p = allProducts.find(x => x.id === id);
-  if(!p) return;
+  const p = window._p.find(x => x.id === id);
+  if (!p) return;
   const imgs = p.imgs && p.imgs.length ? p.imgs : (p.img ? [p.img] : []);
   document.getElementById('d-name').textContent = p.name;
   document.getElementById('d-talla').textContent = p.talla;
-  document.getElementById('d-price').textContent = p.price ? p.price : 'Consultar';
-  document.getElementById('d-code').textContent = p.code ? 'Cód: '+p.code : '';
+  document.getElementById('d-price').textContent = p.price || 'Consultar';
+  document.getElementById('d-code').textContent = p.code ? 'Cód: ' + p.code : '';
   const bigImg = document.getElementById('d-bigimg');
   const bigWrap = document.querySelector('.detail-bigimg');
-  if(imgs[0]){ bigImg.src = imgs[0]; bigWrap.style.display='flex'; }
-  else { bigWrap.style.display='none'; }
+  if (imgs[0]) {
+    bigImg.src = clThumb(imgs[0]);
+    bigWrap.style.display = 'flex';
+    const loader = new Image();
+    loader.onload = () => { bigImg.src = clFull(imgs[0]); };
+    loader.src = clFull(imgs[0]);
+  } else { bigWrap.style.display = 'none'; }
   const thumbs = document.getElementById('d-thumbs');
-  if(imgs.length > 1){
-    thumbs.style.display='grid';
-    thumbs.innerHTML = imgs.map((url,i) => `
+  if (imgs.length > 1) {
+    thumbs.style.display = 'grid';
+    thumbs.innerHTML = imgs.map((url, i) => `
       <div class="detail-thumb ${i===0?'active':''}" onclick="selectThumb(this,'${url}')">
-        <img src="${url}" loading="lazy" />
-      </div>`).join('');
-  } else { thumbs.style.display='none'; }
+        <img src="${clThumb(url)}" loading="lazy" /></div>`).join('');
+  } else { thumbs.style.display = 'none'; }
   document.getElementById('ov-detail').classList.add('open');
 };
 
 window.selectThumb = (el, url) => {
   document.querySelectorAll('.detail-thumb').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  document.getElementById('d-bigimg').src = url;
+  document.getElementById('d-bigimg').src = clFull(url);
 };
 
-// RENDER
-function render(){
-  let list = filterTalla==='all' ? allProducts : allProducts.filter(p => p.talla===filterTalla);
-  document.getElementById('stat-total').textContent = allProducts.length;
-  document.getElementById('stat-avail').textContent = allProducts.filter(p => !p.sold).length;
-  document.getElementById('stat-sold').textContent = 100 + allProducts.filter(p => p.sold).length;
-  document.getElementById('count-lbl').textContent = list.length+' producto'+(list.length!==1?'s':'');
+window.render = function() {
+  const all = window._p, ft = window._filter;
+  const list = ft === 'all' ? all : all.filter(p => p.talla === ft);
+  document.getElementById('stat-total').textContent = all.length;
+  document.getElementById('stat-avail').textContent = all.filter(p => !p.sold).length;
+  document.getElementById('stat-sold').textContent = 100 + all.filter(p => p.sold).length;
+  document.getElementById('count-lbl').textContent = list.length + ' producto' + (list.length !== 1 ? 's' : '');
   const grid = document.getElementById('grid');
-  if(!list.length){
-    grid.innerHTML = `<div class="empty"><p>${allProducts.length?'No hay poleras en talla '+filterTalla+'.':'Aún no hay productos.'}</p></div>`;
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty"><p>${all.length ? 'No hay poleras en talla '+ft+'.' : 'Cargando...'}</p></div>`;
     return;
   }
-  grid.innerHTML = list.map((p,i) => {
+  grid.innerHTML = list.map((p, i) => {
     const imgs = p.imgs && p.imgs.length ? p.imgs : (p.img ? [p.img] : []);
-    const mainImg = imgs[0];
-    return `<div class="card ${p.sold?'sold':''}" style="animation-delay:${i*0.05}s">
+    const mi = imgs[0];
+    const delay = i < 20 ? `animation-delay:${i*0.04}s` : 'animation-delay:0.3s';
+    return `<div class="card ${p.sold?'sold':''}" style="${delay}" data-id="${p.id}">
       <div class="card-img" onclick="openDetail('${p.id}')">
-        ${mainImg ? `<img src="${mainImg}" alt="${p.name}" loading="lazy" />` : `<div class="no-img-wrap"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><span style="font-size:12px;color:#ccc">Sin foto</span></div>`}
+        ${mi ? `<img src="${clThumb(mi)}" alt="" loading="${i<8?'eager':'lazy'}" decoding="async" />` : `<div class="no-img-wrap"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><span style="font-size:12px;color:#ccc">Sin foto</span></div>`}
         <div class="badge-avail ${p.sold?'badge-sold':''}">${p.sold?'VENDIDO':'DISPONIBLE'}</div>
       </div>
       <div class="card-body">
         <div class="card-row">
           <div class="talla">${p.talla}</div>
           ${imgs.length>1?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:#999;letter-spacing:1px">${imgs.length} fotos</div>`:''}
-          ${p.price ? `<div class="price-wrap"><div class="price-curr">Bs.</div><div class="price">${p.price}</div></div>` : `<div class="price-wrap"><div class="price" style="font-size:18px;color:var(--muted)">Consultar</div></div>`}
+          ${p.price?`<div class="price-wrap"><div class="price-curr">Bs.</div><div class="price">${p.price}</div></div>`:`<div class="price-wrap"><div class="price" style="font-size:18px;color:var(--muted)">Consultar</div></div>`}
         </div>
         ${p.code?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:1px;color:#666;margin-top:4px">Código ${p.code}</div>`:''}
       </div>
@@ -581,21 +388,183 @@ function render(){
         <button class="btn-act" onclick="editProduct('${p.id}')">Editar</button>
         <button class="btn-act btn-sold-toggle" onclick="toggleSold('${p.id}')">${p.sold?'Reponer':'Vendido'}</button>
         <button class="btn-act btn-del" onclick="deleteProduct('${p.id}')">Eliminar</button>
-      </div>
-    </div>`;
+      </div></div>`;
   }).join('');
+};
+
+// Hover preload
+const _pre = new Set();
+document.addEventListener('mouseover', e => {
+  const card = e.target.closest('.card[data-id]');
+  if (!card) return;
+  const id = card.dataset.id;
+  if (_pre.has(id)) return; _pre.add(id);
+  const p = window._p.find(x => x.id === id);
+  if (p) { const u = (p.imgs && p.imgs[0]) || p.img; if (u) new Image().src = clFull(u); }
+}, { passive: true });
+
+// 1. Caché localStorage → instante
+try {
+  const c = localStorage.getItem(CACHE_KEY);
+  if (c) { window._p = JSON.parse(c); window.render(); }
+} catch(e) {}
+
+function applyProducts(list) {
+  window._p = list;
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(list)); } catch(e) {}
+  window.render();
+  list.slice(0, 12).forEach(p => {
+    const u = (p.imgs && p.imgs[0]) || p.img; if (u) new Image().src = clFull(u);
+  });
 }
 
-// REALTIME
-const q = query(collection(db,'poleras'), orderBy('code','asc'));
-onSnapshot(q, snap => {
-  allProducts = snap.docs.map(d => ({id:d.id,...d.data()}))
-    .filter(p => !p.code.startsWith('EXTRA'));
-  render();
-}, err => {
-  console.error(err);
-  document.getElementById('grid').innerHTML = '<div class="empty"><p>Error al cargar. Verifica tu conexión.</p></div>';
-});
+// 2. products.json (mismo dominio, ultra rápido) → primera vez se ve al toque
+fetch('./products.json?v=' + Date.now())
+  .then(r => r.ok ? r.json() : null)
+  .then(data => { if (data && data.length) applyProducts(data); })
+  .catch(() => {});
+
+// 3. Firestore REST en segundo plano → datos siempre frescos
+(async function syncFirestore() {
+  try {
+    const base = 'https://firestore.googleapis.com/v1/projects/new-york-closet/databases/(default)/documents/poleras?pageSize=300';
+    let docs = [], url = base;
+    while (url) {
+      const data = await (await fetch(url)).json();
+      docs.push(...(data.documents || []));
+      // Mostrar lo que llega, sin esperar todas las páginas
+      const partial = docs.map(d => {
+        const f = d.fields || {};
+        return {
+          id: d.name.split('/').pop(),
+          name: f.name?.stringValue || '',
+          code: f.code?.stringValue || '',
+          talla: f.talla?.stringValue || '',
+          price: parseInt(f.price?.integerValue || f.price?.doubleValue || 0) || 0,
+          sold: f.sold?.booleanValue || false,
+          imgs: (f.imgs?.arrayValue?.values || []).map(v => v.stringValue).filter(Boolean),
+          img: f.img?.stringValue || null
+        };
+      }).filter(p => p.code && !p.code.startsWith('EXTRA'))
+        .sort((a, b) => (parseInt(a.code)||0) - (parseInt(b.code)||0));
+      applyProducts(partial);
+      url = data.nextPageToken ? base + '&pageToken=' + data.nextPageToken : null;
+    }
+  } catch(e) {
+    if (!window._p.length)
+      document.getElementById('grid').innerHTML = '<div class="empty"><p>Error al cargar.</p></div>';
+  }
+})();
+
+// 3. Firebase: solo carga cuando se necesita (admin)
+let _fbReady = null;
+function ensureFirebase() {
+  if (!_fbReady) _fbReady = Promise.all([
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'),
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js')
+  ]).then(([{initializeApp},{getFirestore,collection,addDoc,updateDoc,deleteDoc,doc,serverTimestamp,onSnapshot,orderBy,query},{getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged}]) => {
+    const app = initializeApp(FB_CONFIG);
+    const db = getFirestore(app), auth = getAuth(app);
+    window._db = db; window._auth = auth;
+    window._fns = {collection,addDoc,updateDoc,deleteDoc,doc,serverTimestamp,onSnapshot,orderBy,query,signInWithEmailAndPassword,signOut};
+    onAuthStateChanged(auth, user => {
+      document.body.classList.toggle('admin-mode', !!user);
+      if (user) startRealtimeSync(db);
+    });
+    return {db, auth};
+  });
+  return _fbReady;
+}
+
+function startRealtimeSync(db) {
+  const {collection,onSnapshot,orderBy,query} = window._fns;
+  const q = query(collection(db,'poleras'), orderBy('code','asc'));
+  onSnapshot(q, snap => {
+    window._p = snap.docs.map(d => {
+      const x = d.data();
+      return {id:d.id,name:x.name||'',code:x.code||'',talla:x.talla||'',price:x.price||0,sold:x.sold||false,imgs:x.imgs||[],img:x.img||null};
+    }).filter(p => !p.code.startsWith('EXTRA'));
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(window._p)); } catch(e) {}
+    window.render();
+  });
+}
+
+window.openLogin = () => {
+  document.getElementById('ov-login').classList.add('open');
+  setTimeout(() => document.getElementById('pwd').focus(), 150);
+  ensureFirebase();
+};
+window.doLogin = async () => {
+  const {db, auth} = await ensureFirebase();
+  const btn = document.getElementById('login-btn'), err = document.getElementById('login-err');
+  err.style.display='none'; btn.textContent='Entrando...'; btn.disabled=true;
+  try {
+    await window._fns.signInWithEmailAndPassword(auth, 'david12345aeioud@gmail.com', document.getElementById('pwd').value);
+    window.closeOv('ov-login'); document.getElementById('pwd').value='';
+  } catch(e) { err.style.display='block'; }
+  btn.textContent='Entrar'; btn.disabled=false;
+};
+window.doLogout = async () => { const {auth} = await ensureFirebase(); await window._fns.signOut(auth); };
+
+const SVG_IMG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
+let dragSrc = null;
+function rebuildSlotsUI() {
+  const g = document.getElementById('slots-grid'); if(!g) return; g.innerHTML='';
+  window._slotPreviews.forEach((url,i) => {
+    const slot=document.createElement('div'); slot.className='img-slot'; slot.setAttribute('draggable','true');
+    const im=document.createElement('img'); im.src=url; im.style.cssText='width:100%;height:100%;object-fit:cover;position:absolute;inset:0;pointer-events:none'; slot.appendChild(im);
+    const del=document.createElement('button'); del.className='slot-del'; del.textContent='✕'; del.addEventListener('click',e=>{e.stopPropagation();window.removeSlot(i);}); slot.appendChild(del);
+    slot.addEventListener('dragstart',e=>{dragSrc=i;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(i));setTimeout(()=>slot.classList.add('dragging'),0);});
+    slot.addEventListener('dragend',()=>{slot.classList.remove('dragging');g.querySelectorAll('.img-slot').forEach(s=>s.classList.remove('drag-over'));});
+    slot.addEventListener('dragover',e=>{e.preventDefault();if(dragSrc!==i)slot.classList.add('drag-over');});
+    slot.addEventListener('dragleave',()=>slot.classList.remove('drag-over'));
+    slot.addEventListener('drop',e=>{e.preventDefault();slot.classList.remove('drag-over');const src=parseInt(e.dataTransfer.getData('text/plain'));if(isNaN(src)||src===i)return;[window._slotFiles[src],window._slotFiles[i]]=[window._slotFiles[i],window._slotFiles[src]];[window._slotPreviews[src],window._slotPreviews[i]]=[window._slotPreviews[i],window._slotPreviews[src]];rebuildSlotsUI();});
+    g.appendChild(slot);
+  });
+  const add=document.createElement('div'); add.className='img-slot add-slot'; add.innerHTML=SVG_IMG+'<span class="slot-label">Agregar</span>'; add.addEventListener('click',()=>document.getElementById('file-add').click()); g.appendChild(add);
+}
+window.removeSlot=i=>{window._slotFiles.splice(i,1);window._slotPreviews.splice(i,1);rebuildSlotsUI();};
+window.addSlotFile=input=>{if(!input.files[0])return;const r=new FileReader();r.onload=e=>{window._slotPreviews.push(e.target.result);window._slotFiles.push(input.files[0]);rebuildSlotsUI();};r.readAsDataURL(input.files[0]);input.value='';};
+function resetSlots(imgs){window._slotPreviews=(imgs||[]).filter(Boolean);window._slotFiles=window._slotPreviews.map(()=>null);rebuildSlotsUI();}
+
+window.openAddModal=async()=>{
+  const{auth}=await ensureFirebase(); if(!auth.currentUser){alert('Debes iniciar sesión como admin.');return;}
+  window._editId=null; document.getElementById('prod-title').textContent='Nueva Polera'; document.getElementById('f-talla').value='M'; document.getElementById('f-price').value=''; document.getElementById('f-code').value=''; resetSlots(); document.getElementById('ov-product').classList.add('open');
+};
+window.editProduct=async id=>{
+  const{auth}=await ensureFirebase(); if(!auth.currentUser)return;
+  const p=window._p.find(x=>x.id===id); if(!p)return;
+  window._editId=id; document.getElementById('prod-title').textContent='Editar Polera'; document.getElementById('f-talla').value=p.talla; document.getElementById('f-price').value=p.price; document.getElementById('f-code').value=p.code||''; resetSlots(p.imgs&&p.imgs.length?p.imgs:(p.img?[p.img]:[])); document.getElementById('ov-product').classList.add('open');
+};
+window.saveProduct=async()=>{
+  const{db,auth}=await ensureFirebase(); if(!auth.currentUser){alert('No autorizado.');return;}
+  const talla=document.getElementById('f-talla').value, price=parseInt(document.getElementById('f-price').value), codeInput=document.getElementById('f-code').value.trim();
+  if(!price){alert('Completa el precio.');return;} if(!codeInput){alert('Completa el código.');return;}
+  const btn=document.getElementById('save-btn'); btn.textContent='Guardando...'; btn.disabled=true;
+  const imgs=[];
+  for(let i=0;i<window._slotPreviews.length;i++){
+    if(window._slotFiles[i]){try{const fd=new FormData();fd.append('file',window._slotFiles[i]);fd.append('upload_preset',CLOUD_PRESET);const u=await(await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,{method:'POST',body:fd})).json();if(u.secure_url)imgs.push(u.secure_url);}catch(e){}}
+    else if(window._slotPreviews[i])imgs.push(window._slotPreviews[i]);
+  }
+  const{doc,addDoc,updateDoc,collection,serverTimestamp}=window._fns;
+  try{
+    if(window._editId)await updateDoc(doc(db,'poleras',window._editId),{name:'',talla,price,code:codeInput,imgs,updatedAt:serverTimestamp()});
+    else await addDoc(collection(db,'poleras'),{name:'',talla,price,code:codeInput,imgs,sold:false,createdAt:serverTimestamp()});
+    window.closeOv('ov-product');
+  }catch(e){alert('Error: '+e.message);}
+  btn.textContent='Guardar'; btn.disabled=false;
+};
+window.toggleSold=async id=>{
+  const{db,auth}=await ensureFirebase(); if(!auth.currentUser)return;
+  const p=window._p.find(x=>x.id===id); const{doc,updateDoc}=window._fns;
+  if(p)await updateDoc(doc(db,'poleras',id),{sold:!p.sold});
+};
+window.deleteProduct=async id=>{
+  const{db,auth}=await ensureFirebase(); if(!auth.currentUser)return;
+  if(!confirm('¿Eliminar esta polera?'))return;
+  const{doc,deleteDoc}=window._fns; await deleteDoc(doc(db,'poleras',id));
+};
 </script>
 </body>
 </html>
